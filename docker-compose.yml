@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  chromadb:
+    image: chromadb/chroma:latest
+    ports:
+      - '8000:8000'
+    volumes:
+      - chroma_data:/chroma/chroma
+
+  ml-service:
+    build: ./ml-service
+    ports:
+      - '5000:5000'
+    depends_on:
+      - chromadb
+    environment:
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - MODEL_NAME=${MODEL_NAME:-t5-base}
+    volumes:
+      - ./ml-service:/app
+      - model_cache:/root/.cache/huggingface
+
+  backend:
+    build: ./backend
+    ports:
+      - '3001:3001'
+    depends_on:
+      - ml-service
+    environment:
+      - PYTHON_SERVICE_URL=http://ml-service:5000
+      - PORT=3001
+    volumes:
+      - ./backend/uploads:/app/uploads
+
+  frontend:
+    build: ./frontend
+    ports:
+      - '3000:3000'
+    depends_on:
+      - backend
+    environment:
+      - VITE_API_URL=http://localhost:3001
+
+volumes:
+  chroma_data:
+  model_cache:
